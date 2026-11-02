@@ -2,6 +2,12 @@
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
+## Firebase Hosting deployment
+
+The `Deploy to Firebase Hosting` GitHub Actions workflow deploys the production site when changes are pushed to `main`. It can also be started manually from the Actions tab.
+
+Add a repository Actions secret named `FIREBASE_SERVICE_ACCOUNT_FIR_5826C` containing a Firebase service account JSON key with permission to deploy to Firebase Hosting. The workflow builds the app and deploys the `dist` directory configured in `firebase.json`.
+
 Currently, two official plugins are available:
 
 - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
