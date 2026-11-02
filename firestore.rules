@@ -1,0 +1,168 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function validProfile(data, uid) {
+      return data.keys().hasOnly([
+          'uid',
+          'displayName',
+          'displayNameLower',
+          'displayNameTokens',
+          'email',
+          'emailLower',
+          'photoURL',
+          'updatedAt'
+        ])
+        && data.uid == uid
+        && data.displayName is string
+        && data.displayName.size() > 0
+        && data.displayName.size() <= 80
+        && data.displayNameLower is string
+        && data.displayNameTokens is list
+        && data.displayNameTokens.size() <= 80
+        && data.email is string
+        && data.email.size() <= 254
+        && data.emailLower is string
+        && data.photoURL is string
+        && data.photoURL.size() <= 2048
+        && data.updatedAt == request.time;
+    }
+
+    function validPublicProfile(data, uid) {
+      return data.keys().hasOnly([
+          'uid',
+          'displayName',
+          'displayNameLower',
+          'displayNameTokens',
+          'photoURL',
+          'updatedAt'
+        ])
+        && data.uid == uid
+        && data.displayName is string
+        && data.displayName.size() > 0
+        && data.displayName.size() <= 80
+        && data.displayNameLower is string
+        && data.displayNameTokens is list
+        && data.displayNameTokens.size() <= 80
+        && data.photoURL is string
+        && data.photoURL.size() <= 2048
+        && data.updatedAt == request.time;
+    }
+
+    function validParticipants(participants) {
+      return participants is list
+        && participants.size() == 2
+        && participants[0] != participants[1]
+        && request.auth.uid in participants
+        && exists(/databases/$(database)/documents/publicProfiles/$(participants[0]))
+        && exists(/databases/$(database)/documents/publicProfiles/$(participants[1]));
+    }
+
+    function conversationPath(conversationId) {
+      return /databases/$(database)/documents/conversations/$(conversationId);
+    }
+
+    function messagePath(conversationId, messageId) {
+      return /databases/$(database)/documents/conversations/$(conversationId)/messages/$(messageId);
+    }
+
+    function canReadConversation(conversationId) {
+      return signedIn()
+        && exists(conversationPath(conversationId))
+        && request.auth.uid in get(conversationPath(conversationId)).data.participants;
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn()
+        && request.auth.uid == uid
+        && validProfile(request.resource.data, uid);
+      allow delete: if false;
+    }
+
+    match /publicProfiles/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+        && request.auth.uid == uid
+        && validPublicProfile(request.resource.data, uid);
+      allow delete: if false;
+    }
+
+    match /conversations/{conversationId} {
+      allow read: if signedIn()
+        && (resource == null || request.auth.uid in resource.data.participants);
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'participants',
+          'createdAt',
+          'updatedAt',
+          'lastMessage',
+          'lastMessageId',
+          'lastMessageAt',
+          'lastSenderId'
+        ])
+        && request.resource.data.keys().hasAll([
+          'participants',
+          'createdAt',
+          'updatedAt',
+          'lastMessage',
+          'lastMessageId',
+          'lastMessageAt',
+          'lastSenderId'
+        ])
+        && validParticipants(request.resource.data.participants)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.lastMessageAt == request.time
+        && request.resource.data.lastMessage == ''
+        && request.resource.data.lastMessageId == ''
+        && request.resource.data.lastSenderId == '';
+
+      allow update: if signedIn()
+        && request.auth.uid in resource.data.participants
+        && request.resource.data.participants == resource.data.participants
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'lastMessage',
+          'lastMessageId',
+          'lastMessageAt',
+          'lastSenderId',
+          'updatedAt'
+        ])
+        && request.resource.data.lastMessage is string
+        && request.resource.data.lastMessage.size() > 0
+        && request.resource.data.lastMessage.size() <= 4000
+        && request.resource.data.lastMessageId is string
+        && request.resource.data.lastMessageId.size() > 0
+        && request.resource.data.lastSenderId == request.auth.uid
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.lastMessageAt == request.time
+        && getAfter(messagePath(conversationId, request.resource.data.lastMessageId)).data.senderId == request.auth.uid
+        && getAfter(messagePath(conversationId, request.resource.data.lastMessageId)).data.text == request.resource.data.lastMessage
+        && getAfter(messagePath(conversationId, request.resource.data.lastMessageId)).data.createdAt == request.time;
+
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if canReadConversation(conversationId);
+
+        allow create: if canReadConversation(conversationId)
+          && request.resource.data.keys().hasOnly(['senderId', 'text', 'createdAt'])
+          && request.resource.data.keys().hasAll(['senderId', 'text', 'createdAt'])
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 4000
+          && request.resource.data.createdAt == request.time
+          && getAfter(conversationPath(conversationId)).data.lastMessageId == messageId
+          && getAfter(conversationPath(conversationId)).data.lastMessage == request.resource.data.text
+          && getAfter(conversationPath(conversationId)).data.lastSenderId == request.auth.uid;
+
+        allow update, delete: if false;
+      }
+    }
+  }
+}
