@@ -12,6 +12,9 @@ dist
 dist-ssr
 build
 .github
+!.github/
+!.github/workflows/
+!.github/workflows/*.yml
 .firebase
 .firebaserc
 src/firebase.js
