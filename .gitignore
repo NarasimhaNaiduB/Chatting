@@ -13,6 +13,8 @@ dist-ssr
 build
 .github
 .firebase
+.firebaserc
+firebase.json
 *.local
 
 # Editor directories and files
