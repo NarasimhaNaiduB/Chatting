@@ -29,7 +29,7 @@ function App() {
           Count is {count}
         </button>
       </section>
-
+      <h1>Hello</h1>
       <div className="ticks"></div>
 
       <section id="next-steps">
