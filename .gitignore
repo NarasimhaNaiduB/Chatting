@@ -14,7 +14,7 @@ build
 .github
 .firebase
 .firebaserc
-./src/.firebaserc
+src/firebase.js
 firebase.json
 *.local
 
